@@ -59,6 +59,7 @@ BeatCounterAudioProcessor::BeatCounterAudioProcessor() : TeragonPluginBase(), Pa
     parameters.add(new StringParameter("Version", version));
 
     parameters.pause();
+    lastEmittedBpmCc = -1;
 }
 
 void BeatCounterAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock) {
@@ -84,13 +85,15 @@ void BeatCounterAudioProcessor::clearBpmHistory() {
     parameters.set("Current BPM", 0.0);
     parameters.set("Running BPM", 0.0);
     runningBpm = 0.0;
+    lastEmittedBpmCc = -1;
 }
 
 void BeatCounterAudioProcessor::processBlock(AudioSampleBuffer &buffer, MidiBuffer &midiMessages) {
     TeragonPluginBase::processBlock(buffer, midiMessages);
 
     for(int i = 0; i < buffer.getNumSamples(); ++i) {
-        float currentSample = *buffer.getSampleData(0, i);
+        // Task 3 fix: getSampleData() was deprecated; use getReadPointer() instead
+        float currentSample = buffer.getReadPointer(0)[i];
         double currentSampleAmplitude;
 
         if(filterEnabled) {
@@ -163,6 +166,18 @@ void BeatCounterAudioProcessor::processBlock(AudioSampleBuffer &buffer, MidiBuff
                             bpmHistory.clear();
                             numSamplesProcessed = 0;
                             parameters.set("Running BPM", runningBpm);
+
+                            // Task 4: Emit running BPM as MIDI CC 20 on channel 1.
+                            // Value is BPM rounded and clamped to 0-127.
+                            // Deduplication: only emit when value changes to avoid CC flood.
+                            int bpmCcValue = (int)(runningBpm + 0.5);
+                            if(bpmCcValue < 0)   bpmCcValue = 0;
+                            if(bpmCcValue > 127) bpmCcValue = 127;
+                            if(bpmCcValue != lastEmittedBpmCc) {
+                                MidiMessage ccMsg = MidiMessage::controllerEvent(1, kBpmMidiCcNumber, bpmCcValue);
+                                midiMessages.addEvent(ccMsg, i);
+                                lastEmittedBpmCc = bpmCcValue;
+                            }
                         }
                     }
                     else {
