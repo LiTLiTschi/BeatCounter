@@ -106,6 +106,12 @@ private:
     // detection algorithm.
     unsigned long cooldownPeriodInSamples;
 
+    // MIDI CC BPM output
+    // Emits running BPM as CC 20 on channel 1 every time the running average updates.
+    // Value is BPM rounded and clamped to [0, 127]. Deduplication: only emits on change.
+    static const int kBpmMidiCcNumber = 20;
+    int lastEmittedBpmCc;  // -1 = never emitted
+
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BeatCounterAudioProcessor)
 };
